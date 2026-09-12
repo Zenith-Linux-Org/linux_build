@@ -1,0 +1,50 @@
+#!/bin/bash
+set -e
+ROOT="$1"
+PKG_DIR="${ROOT}/framework/lib/curl"
+PREFIX="${ROOT}/out/target/usr"
+BUILD_DIR="${ROOT}/out/build/curl"
+
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+CC="${CC:-clang}" CXX="${CXX:-clang++}" CFLAGS="${CFLAGS}" LDFLAGS="${LDFLAGS}" cmake \
+    -B build \
+    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_C_COMPILER="${CC}" \
+    -DCMAKE_CXX_COMPILER="${CXX}" \
+    -DCMAKE_C_FLAGS="${CFLAGS}" \
+    -DCMAKE_CXX_FLAGS="${CXXFLAGS:-}" \
+    -DCMAKE_EXE_LINKER_FLAGS="${LDFLAGS}" \
+    -DCMAKE_SHARED_LINKER_FLAGS="${LDFLAGS}" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DCURL_STATICLIB=ON \
+    -DCURL_DISABLE_LDAP=ON \
+    -DCURL_DISABLE_LDAPS=ON \
+    -DHTTP_ONLY=OFF \
+    -DCURL_USE_OPENSSL=OFF \
+    -DCURL_USE_MBEDTLS=OFF \
+    -DCURL_USE_WOLFSSL=OFF \
+    -DCURL_ZLIB=OFF \
+    -DCURL_BROTLI=OFF \
+    -DCURL_ZSTD=OFF \
+    -DCURL_USE_LIBPSL=OFF \
+    -DBUILD_TESTING=OFF \
+    -DCURL_ENABLE_TESTING=OFF \
+    -DBUILD_CURL_EXE=OFF \
+    -DUSE_WIN32_IDN=OFF \
+    -DUSE_LIBIDN2=OFF \
+    -DUSE_NGHTTP2=OFF \
+    -DUSE_QUICHE=OFF \
+    -DUSE_NGTCP2=OFF \
+    -DCURL_USE_LIBSSH2=OFF \
+    -DCURL_USE_BEARSSL=OFF \
+    -DCURL_USE_GSASL=OFF \
+    -DHAVE_STRERROR_R=1 \
+    -DHAVE_POSIX_STRERROR_R=1 \
+    -DHAVE_GLIBC_STRERROR_R=0 \
+    "$PKG_DIR"
+
+cmake --build build -j"$(nproc)"
+cmake --install build

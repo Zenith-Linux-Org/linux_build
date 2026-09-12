@@ -1,0 +1,19 @@
+#!/bin/bash
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+MUSL="$ROOT/out/build/musl"
+
+exec "${ROOT}/prebuilts/toolchains/llvm/bin/clang" \
+    --target=x86_64-unknown-linux-musl \
+    --sysroot="${MUSL}" \
+    --ld-path=/usr/bin/ld.lld \
+    -Wno-unused-command-line-argument \
+    -Wno-unused-but-set-variable \
+    -isystem "${ROOT}/packages/system/musl/arch/x86_64" \
+    -isystem "${ROOT}/packages/system/musl/arch/generic" \
+    -isystem "${MUSL}/obj/include" \
+    -isystem "${ROOT}/packages/system/musl/include" \
+    -isystem "${ROOT}/out/stubs" \
+    -isystem "${ROOT}/kernel/linux/include/uapi" \
+    -isystem "${ROOT}/kernel/linux/arch/x86/include/generated/uapi" \
+    -isystem "${ROOT}/kernel/linux/arch/x86/include/uapi" \
+    "$@"

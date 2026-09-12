@@ -1,0 +1,15 @@
+[binaries]
+c = ['/home/minh/Projects/Zenith_Linux/build/musl-clang']
+cpp = ['/home/minh/Projects/Zenith_Linux/build/musl-clang++']
+ar = ['llvm-ar']
+strip = ['llvm-strip']
+pkgconfig = ['pkgconf']
+
+[properties]
+c_link_args = ['-static']
+
+[host_machine]
+system = 'linux'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'
