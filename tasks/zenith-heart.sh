@@ -17,7 +17,7 @@ if [ ! -f "$MUSL_BUILD/lib/libc.a" ]; then
 fi
 
 echo "zenith-heart: compiling static against musl"
-clang -std=c23 -O2 -pipe -march=x86-64-v3 -Wall -Wextra -Werror \
+clang -std=c23 -O2 -pipe -march=x86-64-v3 -Wall -Wextra -Werror -Wno-cpp \
     -nostdinc \
     -isystem "$MUSL_SRC/arch/x86_64" \
     -isystem "$MUSL_SRC/arch/generic" \
@@ -25,6 +25,7 @@ clang -std=c23 -O2 -pipe -march=x86-64-v3 -Wall -Wextra -Werror \
     -isystem "$MUSL_SRC/src/include" \
     -isystem "$MUSL_SRC/include" \
     -isystem "$ROOT/kernel/linux/include/uapi" \
+    -isystem "$ROOT/kernel/linux/arch/x86/include/generated/uapi" \
     -isystem "$ROOT/kernel/linux/arch/x86/include/uapi" \
     -D_XOPEN_SOURCE=700 \
     -c "$PKG_DIR/zenith-heart.c" \
