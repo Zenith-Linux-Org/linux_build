@@ -26,6 +26,7 @@ CLANG_RT="${ROOT}/prebuilts/toolchains/llvm/lib/clang/23/lib/x86_64-unknown-linu
 cp "$CLANG_RT/clang_rt.crtbegin.o" "$BUILD_DIR/lib/crtbeginT.o"
 cp "$CLANG_RT/clang_rt.crtend.o" "$BUILD_DIR/lib/crtend.o"
 cp "$CLANG_RT/clang_rt.crtbegin.o" "$BUILD_DIR/lib/crtbegin.o"
+cp "$CLANG_RT/clang_rt.crtbegin.o" "$BUILD_DIR/lib/crtbeginS.o"
 cp "$CLANG_RT/clang_rt.crtend.o" "$BUILD_DIR/lib/crtendS.o"
 
 # compiler-rt builtins replace libgcc
@@ -37,6 +38,7 @@ cp "$CLANG_RT/libclang_rt.builtins.a" "$BUILD_DIR/lib/libgcc_s.a"
 LLVM_LIB="${ROOT}/prebuilts/toolchains/llvm/lib/x86_64-unknown-linux-gnu"
 cp "$LLVM_LIB/libc++.a" "$BUILD_DIR/lib/libstdc++.a"
 cp "$LLVM_LIB/libc++abi.a" "$BUILD_DIR/lib/libc++abi.a"
+cp "$LLVM_LIB/libunwind.a" "$BUILD_DIR/lib/libunwind.a" 2>/dev/null || cp "${ROOT}/prebuilts/toolchains/llvm/lib/x86_64-unknown-linux-gnu/libunwind.a" "$BUILD_DIR/lib/libunwind.a"
 
 # musl-specific libc++ config — sets _LIBCPP_HAS_MUSL_LIBC=1 and hardening mode
 CONFIG_DIR="$BUILD_DIR/libc++-config/x86_64-unknown-linux-musl/c++/v1"
@@ -67,3 +69,15 @@ ENDCONFIG
 # Symlink into LLVM headers so #include <__config> finds it
 ln -sf "$CONFIG_DIR/__config_site" \
   "${ROOT}/prebuilts/toolchains/llvm/include/c++/v1/__config_site"
+
+# Stub for __cxa_thread_atexit_impl (musl lacks this glibc extension, libc++abi needs it)
+cat > "$BUILD_DIR/lib/__cxa_thread_atexit_stub.c" << 'ENDSTUB'
+#include <stdlib.h>
+typedef void (*dtor_func)(void*);
+int __cxa_thread_atexit_impl(dtor_func func, void *obj, void *dso) {
+    return 0;
+}
+ENDSTUB
+"$CLANG" --target=x86_64-unknown-linux-musl -c \
+  -o "$BUILD_DIR/lib/__cxa_thread_atexit_stub.o" \
+  "$BUILD_DIR/lib/__cxa_thread_atexit_stub.c"
