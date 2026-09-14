@@ -83,6 +83,14 @@ else
     echo "mkiso: WARNING: Qwen model not found at prebuilts/models/qwen-1.7b.gguf"
 fi
 
+# Kernel modules to EROFS root (available after chroot)
+KVER=$(ls "$SYSROOT/lib/modules/" 2>/dev/null | head -1)
+if [ -n "$KVER" ] && [ -d "$SYSROOT/lib/modules/$KVER" ]; then
+    mkdir -p "$EROFS_DIR/lib/modules/$KVER"
+    cp -a "$SYSROOT/lib/modules/$KVER"/* "$EROFS_DIR/lib/modules/$KVER/" 2>/dev/null || true
+    echo "mkiso: EROFS root modules: $(find "$EROFS_DIR/lib/modules/$KVER" -name "*.ko*" 2>/dev/null | wc -l) files"
+fi
+
 # Build EROFS image (lz4hc compressed)
 mkfs.erofs -z lz4hc -b 4096 "$EROFS_IMG" "$EROFS_DIR"
 echo "mkiso: EROFS root size: $(du -h "$EROFS_IMG" | cut -f1)"
@@ -109,14 +117,8 @@ for cmd in sh ls mount umount insmod modprobe mkdir cat cp mknod sleep; do
     ln -sf busybox "$INIT_DIR/bin/$cmd"
 done
 
-# Kernel modules needed for boot (EROFS + loop + block drivers)
-KVER=$(ls "$SYSROOT/lib/modules/" 2>/dev/null | head -1)
-if [ -n "$KVER" ] && [ -d "$SYSROOT/lib/modules/$KVER" ]; then
-    mkdir -p "$INIT_DIR/lib/modules/$KVER"
-    # Copy entire module tree (preserves subdirs for modprobe)
-    cp -a "$SYSROOT/lib/modules/$KVER"/* "$INIT_DIR/lib/modules/$KVER/" 2>/dev/null || true
-    echo "mkiso: initramfs modules: $(find "$INIT_DIR/lib/modules/$KVER" -name "*.ko*" 2>/dev/null | wc -l) files"
-fi
+# Kernel modules: NOT needed in initramfs (EROFS/loop/virtio all built-in)
+# Modules are available after chroot into EROFS root
 
 cd "$INIT_DIR"
 /usr/bin/find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > "$INITRAMFS"
