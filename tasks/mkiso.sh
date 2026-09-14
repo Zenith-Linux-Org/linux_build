@@ -110,16 +110,12 @@ for cmd in sh ls mount umount insmod modprobe mkdir cat cp mknod sleep; do
 done
 
 # Kernel modules needed for boot (EROFS + loop + block drivers)
-KVER=$(cd "$ROOT/kernel/linux" && make -s ARCH=x86_64 CC=clang LD=ld kernelrelease 2>/dev/null || echo "")
+KVER=$(ls "$SYSROOT/lib/modules/" 2>/dev/null | head -1)
 if [ -n "$KVER" ] && [ -d "$SYSROOT/lib/modules/$KVER" ]; then
     mkdir -p "$INIT_DIR/lib/modules/$KVER"
-    # Copy only modules needed for boot: erofs, loop, block, scsi, virtio
-    for mod in erofs loop scsi_mod sd_mod virtio_blk virtio_ring virtio_mod usbcore usb_storage nvme nvme_core; do
-        find "$SYSROOT/lib/modules/$KVER" -name "${mod}.ko*" -exec cp {} "$INIT_DIR/lib/modules/$KVER/" \; 2>/dev/null || true
-    done
-    # Also copy modules.dep if it exists for modprobe
-    [ -f "$SYSROOT/lib/modules/$KVER/modules.dep" ] && cp "$SYSROOT/lib/modules/$KVER/modules.dep" "$INIT_DIR/lib/modules/$KVER/"
-    echo "mkiso: initramfs modules: $(ls "$INIT_DIR/lib/modules/$KVER/" 2>/dev/null | wc -l) files"
+    # Copy entire module tree (preserves subdirs for modprobe)
+    cp -a "$SYSROOT/lib/modules/$KVER"/* "$INIT_DIR/lib/modules/$KVER/" 2>/dev/null || true
+    echo "mkiso: initramfs modules: $(find "$INIT_DIR/lib/modules/$KVER" -name "*.ko*" 2>/dev/null | wc -l) files"
 fi
 
 cd "$INIT_DIR"
