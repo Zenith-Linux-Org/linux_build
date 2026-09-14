@@ -59,6 +59,22 @@ done
 cp "$ROOT/out/build/musl/lib/libc.so" "$EROFS_DIR/lib/ld-musl-x86_64.so.1"
 chmod 755 "$EROFS_DIR/lib/ld-musl-x86_64.so.1"
 
+# busybox (for modprobe in initramfs and EROFS root)
+[ -f "$SYSROOT/bin/busybox" ] && cp "$SYSROOT/bin/busybox" "$EROFS_DIR/bin/busybox"
+for cmd in sh ls mount umount insmod modprobe mkdir cat cp; do
+    ln -sf busybox "$EROFS_DIR/bin/$cmd"
+done
+
+# Kernel modules to EROFS root
+KVER=$(cd "$ROOT/kernel/linux" && make -s ARCH=x86_64 CC=clang LD=ld kernelrelease 2>/dev/null || echo "")
+if [ -n "$KVER" ] && [ -d "$SYSROOT/lib/modules/$KVER" ]; then
+    mkdir -p "$EROFS_DIR/lib/modules/$KVER"
+    cp -a "$SYSROOT/lib/modules/$KVER"/* "$EROFS_DIR/lib/modules/$KVER/" 2>/dev/null || true
+    echo "mkiso: installed kernel modules ($KVER) to EROFS root"
+else
+    echo "mkiso: WARNING: kernel modules not found at $SYSROOT/lib/modules/$KVER"
+fi
+
 # Qwen model
 if [ -f "$ROOT/prebuilts/models/qwen-1.7b.gguf" ]; then
     cp "$ROOT/prebuilts/models/qwen-1.7b.gguf" "$EROFS_DIR/usr/share/models/qwen-1.7b.gguf"
@@ -72,13 +88,13 @@ mkfs.erofs -z lz4hc -b 4096 "$EROFS_IMG" "$EROFS_DIR"
 echo "mkiso: EROFS root size: $(du -h "$EROFS_IMG" | cut -f1)"
 cp "$EROFS_IMG" "$ISO_DIR/boot/rootfs.erofs"
 
-# --- Tiny initramfs ---
-# No shell needed — zenith-heart IS the init, mounts EROFS root itself.
+# --- Initramfs ---
+# Contains: zenith-heart (PID 1), busybox (modprobe/insmod), kernel modules
 INIT_DIR="$ROOT/out/initramfs"
 rm -rf "$INIT_DIR"
-mkdir -p "$INIT_DIR/bin"
+mkdir -p "$INIT_DIR/bin" "$INIT_DIR/lib/modules"
 
-# Copy zenith-heart into initramfs (it handles EROFS pivot)
+# zenith-heart
 for src in "$SYSROOT/bin/zenith-heart" "$ROOT/out/build/zenith-heart/zenith-heart"; do
     if [ -f "$src" ]; then
         cp "$src" "$INIT_DIR/bin/zenith-heart"
@@ -87,8 +103,27 @@ for src in "$SYSROOT/bin/zenith-heart" "$ROOT/out/build/zenith-heart/zenith-hear
     fi
 done
 
+# busybox (static musl, provides modprobe/insmod/sh)
+[ -f "$SYSROOT/bin/busybox" ] && cp "$SYSROOT/bin/busybox" "$INIT_DIR/bin/busybox"
+for cmd in sh ls mount umount insmod modprobe mkdir cat cp mknod sleep; do
+    ln -sf busybox "$INIT_DIR/bin/$cmd"
+done
+
+# Kernel modules needed for boot (EROFS + loop + block drivers)
+KVER=$(cd "$ROOT/kernel/linux" && make -s ARCH=x86_64 CC=clang LD=ld kernelrelease 2>/dev/null || echo "")
+if [ -n "$KVER" ] && [ -d "$SYSROOT/lib/modules/$KVER" ]; then
+    mkdir -p "$INIT_DIR/lib/modules/$KVER"
+    # Copy only modules needed for boot: erofs, loop, block, scsi, virtio
+    for mod in erofs loop scsi_mod sd_mod virtio_blk virtio_ring virtio_mod usbcore usb_storage nvme nvme_core; do
+        find "$SYSROOT/lib/modules/$KVER" -name "${mod}.ko*" -exec cp {} "$INIT_DIR/lib/modules/$KVER/" \; 2>/dev/null || true
+    done
+    # Also copy modules.dep if it exists for modprobe
+    [ -f "$SYSROOT/lib/modules/$KVER/modules.dep" ] && cp "$SYSROOT/lib/modules/$KVER/modules.dep" "$INIT_DIR/lib/modules/$KVER/"
+    echo "mkiso: initramfs modules: $(ls "$INIT_DIR/lib/modules/$KVER/" 2>/dev/null | wc -l) files"
+fi
+
 cd "$INIT_DIR"
-find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > "$INITRAMFS"
+/usr/bin/find . -print0 | cpio --null -ov --format=newc 2>/dev/null | gzip -9 > "$INITRAMFS"
 cd "$ROOT"
 echo "mkiso: initramfs size: $(du -h "$INITRAMFS" | cut -f1)"
 cp "$INITRAMFS" "$ISO_DIR/boot/initramfs.cpio.gz"
